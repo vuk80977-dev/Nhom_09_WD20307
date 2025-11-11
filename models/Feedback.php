@@ -1,0 +1,1 @@
+<?php class Feedback extends BaseModel {} ?>

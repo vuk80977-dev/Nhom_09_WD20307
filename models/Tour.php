@@ -1,0 +1,1 @@
+<?php class Tour extends BaseModel {} ?>
