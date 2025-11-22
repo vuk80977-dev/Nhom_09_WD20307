@@ -31,6 +31,42 @@ ob_start();
                     </div>
 
                     <div class="mb-3">
+                        <label class="form-label">Danh mục tour</label>
+                        <select name="tour_type_id" class="form-select">
+                            <option value="">-- Chọn danh mục --</option>
+                            <?php if (!empty($types)): ?>
+                                <?php foreach ($types as $type): ?>
+                                    <option value="<?= $type['id'] ?>">
+                                        <?= htmlspecialchars($type['name']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Nhà cung cấp</label>
+                        <select name="supplier_id" class="form-select">
+                            <option value="">-- Chọn nhà cung cấp --</option>
+                            <?php if (!empty($suppliers)): ?>
+                                <?php foreach ($suppliers as $s): ?>
+                                    <option value="<?= $s['id'] ?>">
+                                        <?= htmlspecialchars($s['name']) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Trạng thái</label>
+                        <select name="status" class="form-select">
+                            <option value="active">Đang mở bán</option>
+                            <option value="inactive">Tạm dừng</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
                         <label class="form-label">Mô tả</label>
                         <textarea name="description" class="form-control" rows="3"></textarea>
                     </div>

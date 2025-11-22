@@ -1,6 +1,12 @@
 <?php
-// Entry point
+session_start();
 
+// Hàm kiểm tra active cho menu
+function isActive($c, $currentController) {
+    return $c === $currentController ? 'active' : '';
+}
+
+// Xử lý autoload và routes
 require_once __DIR__ . '/configs/env.php';
 require_once __DIR__ . '/configs/helper.php';
 
