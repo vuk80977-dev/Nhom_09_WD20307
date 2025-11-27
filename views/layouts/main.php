@@ -230,8 +230,8 @@ $currentAction     = $_GET['a'] ?? 'index';
                class="nav-link-main <?= isActive('Booking', $currentController) ?>">
                 <i class="bi bi-journal-check"></i> Quản lý booking
             </a>
-            <a href="#"
-               class="nav-link-main">
+                <a href="index.php?c=Customer&a=index"
+              class="nav-link-main <?= isActive('Customer', $currentController) ?>">
                 <i class="bi bi-people"></i> Quản lý khách hàng
             </a>
             <a href="index.php?c=Attendance&a=index"

@@ -2,250 +2,240 @@
 require_once __DIR__ . '/../models/Booking.php';
 require_once __DIR__ . '/../models/Tour.php';
 require_once __DIR__ . '/../models/Customer.php';
-require_once __DIR__ . '/../models/Schedule.php'; // ✅ thêm
+require_once __DIR__ . '/../models/Schedule.php';
 
-class BookingController
-{
-    private function redirect($url) {
-        header("Location: {$url}");
-        exit;
+class BookingController {
+
+    private function redirect($url){
+        header("Location: $url"); exit;
     }
 
-    private function setFlash($type, $msg) {
-        if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-        $_SESSION['flash'] = ['type' => $type, 'msg' => $msg];
+    private function setFlash($type,$msg){
+        if(session_status()!==PHP_SESSION_ACTIVE) session_start();
+        $_SESSION['flash']=['type'=>$type,'msg'=>$msg];
     }
 
-    private function takeFlash() {
-        if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-        $f = $_SESSION['flash'] ?? null;
-        unset($_SESSION['flash']);
-        return $f;
+    private function takeFlash(){
+        if(session_status()!==PHP_SESSION_ACTIVE) session_start();
+        $f=$_SESSION['flash']??null; unset($_SESSION['flash']); return $f;
     }
 
-    // GET /?c=Booking&a=index
-    public function index() {
+    // Danh sách + lọc
+    public function index(){
         $bookingModel = new Booking();
+        $tourModel = new Tour();
+        $scheduleModel = new Schedule();
 
-        $page    = max(1, (int)($_GET['page'] ?? 1));
-        $perPage = 10;
+        $page=max(1,(int)($_GET['page']??1));
+        $perPage=10;
 
-        $filters = [
-            'status' => $_GET['status'] ?? '',
-            'q'      => $_GET['q']      ?? '',
+        $filters=[
+            'status'=>$_GET['status']??'',
+            'q'=>$_GET['q']??'',
+            'tour_id'=>$_GET['tour_id']??'',
+            'schedule_id'=>$_GET['schedule_id']??'',
         ];
 
-        $data = $bookingModel->paginate($page, $perPage, $filters);
-        $flash = $this->takeFlash();
+        $data=$bookingModel->paginate($page,$perPage,$filters);
 
-        // map tour & khách để view dùng
-        $tourModel = new Tour();
-        $customerModel = new Customer();
-        $tours = [];
-        foreach ($tourModel->all() as $t) { $tours[$t['id']] = $t; }
-        $customers = [];
-        foreach ($customerModel->all() as $c) { $customers[$c['id']] = $c; }
+        $tours = $tourModel->all('id DESC');
+        $schedules = $scheduleModel->all('id DESC');
 
-        $title = 'Quản lý Booking';
-        // ⚠️ bạn đang để thư mục view là booking hay bookings thì chỉnh cho khớp
+        $flash=$this->takeFlash();
+        $title="Quản lý booking";
         include __DIR__ . '/../views/admin/booking/index.php';
     }
 
-    // GET /?c=Booking&a=create
-    public function create() {
-        $tourModel = new Tour();
-        $customerModel = new Customer();
-        $scheduleModel = new Schedule();
+    public function create(){
+        $tourModel=new Tour();
+        $customerModel=new Customer();
+        $scheduleModel=new Schedule();
 
-        $tours = $tourModel->all();
-        $customers = $customerModel->all();
-
-        // ✅ NEW: lịch mở bán theo tour để form render
+        $tours=$tourModel->all('id DESC');
+        $customers=$customerModel->all('id DESC');
         $schedulesByTour = $scheduleModel->getOpenSchedulesGroupedByTour();
 
-        $booking = [
-            'tour_id' => '',
-            'schedule_id' => '',
-            'customer_id' => '',
-            'booking_date' => date('Y-m-d'),
-            'status' => 'pending'
+        $booking=[
+            'tour_id'=>'',
+            'schedule_id'=>'',
+            'customer_id'=>'',
+            'booking_date'=>date('Y-m-d'),
+            'quantity'=>1,
+            'status'=>'pending',
+            'note'=>'',
+            'rating'=>null,
+            'feedback'=>'',
+            'issue'=>'',
         ];
 
-        $title = 'Thêm Booking';
+        $flash=$this->takeFlash();
+        $title="Thêm booking";
         include __DIR__ . '/../views/admin/booking/form.php';
     }
 
-    // POST /?c=Booking&a=store
-    public function store() {
-        $bookingModel  = new Booking();
-        $scheduleModel = new Schedule();
+    public function store(){
+        $bookingModel=new Booking();
+        $scheduleModel=new Schedule();
 
-        $data = [
-            'tour_id'      => (int)($_POST['tour_id'] ?? 0),
-            'schedule_id'  => (int)($_POST['schedule_id'] ?? 0),  // ✅ NEW
-            'customer_id'  => (int)($_POST['customer_id'] ?? 0),
-            'booking_date' => $_POST['booking_date'] ?? date('Y-m-d'),
-            'status'       => $_POST['status'] ?? 'pending',
+        $data=[
+            'tour_id'=>(int)($_POST['tour_id']??0),
+            'schedule_id'=>(int)($_POST['schedule_id']??0),
+            'customer_id'=>(int)($_POST['customer_id']??0),
+            'booking_date'=>$_POST['booking_date']??date('Y-m-d'),
+            'quantity'=>(int)($_POST['quantity']??1),
+            'status'=>$_POST['status']??'pending',
+            'note'=>trim($_POST['note']??''),
+            'rating'=>($_POST['rating']??'')!==''?(int)$_POST['rating']:null,
+            'feedback'=>trim($_POST['feedback']??''),
+            'issue'=>trim($_POST['issue']??''),
         ];
 
-        // Validate
-        if ($data['tour_id'] <= 0 || $data['customer_id'] <= 0) {
-            $this->setFlash('danger', 'Vui lòng chọn Tour và Khách hàng hợp lệ.');
+        if($data['tour_id']<=0||$data['schedule_id']<=0||$data['customer_id']<=0){
+            $this->setFlash('danger','Vui lòng chọn Tour / Lịch khởi hành / Khách hàng.');
             $this->redirect('index.php?c=Booking&a=create');
         }
 
-        if ($data['schedule_id'] <= 0) {
-            $this->setFlash('danger', 'Vui lòng chọn lịch khởi hành.');
+        if($data['quantity']<=0){
+            $this->setFlash('danger','Số lượng khách phải > 0.');
             $this->redirect('index.php?c=Booking&a=create');
         }
 
-        // ✅ check lịch thuộc tour + còn chỗ
-        $sc = $scheduleModel->find($data['schedule_id']);
-        if (!$sc || (int)$sc['tour_id'] !== $data['tour_id']) {
-            $this->setFlash('danger', 'Lịch khởi hành không hợp lệ.');
+        // check lịch khớp tour + còn chỗ
+        $sc=$scheduleModel->find($data['schedule_id']);
+        if(!$sc || (int)$sc['tour_id']!==$data['tour_id']){
+            $this->setFlash('danger','Lịch khởi hành không hợp lệ.');
             $this->redirect('index.php?c=Booking&a=create');
         }
-        $cap = (int)($sc['capacity'] ?? 0);
-        $booked = (int)($sc['booked_count'] ?? 0);
-        if ($cap > 0 && $booked >= $cap) {
-            $this->setFlash('danger', 'Lịch này đã hết chỗ.');
+
+        $cap=(int)($sc['capacity']??0);
+        $booked=(int)($sc['booked_count']??0);
+        if($cap>0 && ($booked+$data['quantity'])>$cap){
+            $this->setFlash('danger','Lịch này không đủ chỗ.');
             $this->redirect('index.php?c=Booking&a=create');
         }
 
         $bookingModel->create($data);
 
-        // ✅ nếu tạo confirmed thì tăng booked_count
-        if ($data['status'] === 'confirmed') {
-            $bookingModel->incBooked($data['schedule_id']);
+        if($data['status']==='confirmed'){
+            $bookingModel->incBooked($data['schedule_id'],$data['quantity']);
         }
 
-        $this->setFlash('success', 'Tạo booking thành công.');
+        $this->setFlash('success','Tạo booking thành công.');
         $this->redirect('index.php?c=Booking&a=index');
     }
 
-    // GET /?c=Booking&a=edit&id=...
-    public function edit() {
-        $id = (int)($_GET['id'] ?? 0);
-        if ($id <= 0) { $this->redirect('index.php?c=Booking&a=index'); }
+    public function edit(){
+        $id=(int)($_GET['id']??0); if($id<=0) $this->redirect('index.php?c=Booking&a=index');
 
-        $bookingModel = new Booking();
-        $scheduleModel = new Schedule();
+        $bookingModel=new Booking();
+        $tourModel=new Tour();
+        $customerModel=new Customer();
+        $scheduleModel=new Schedule();
 
-        $booking = $bookingModel->find($id);
-        if (!$booking) {
-            $this->setFlash('danger', 'Booking không tồn tại.');
+        $booking=$bookingModel->find($id);
+        if(!$booking){
+            $this->setFlash('danger','Booking không tồn tại.');
             $this->redirect('index.php?c=Booking&a=index');
         }
 
-        $tourModel = new Tour();
-        $customerModel = new Customer();
-
-        $tours = $tourModel->all();
-        $customers = $customerModel->all();
-
-        // ✅ NEW: lịch mở bán theo tour để form render
+        $tours=$tourModel->all('id DESC');
+        $customers=$customerModel->all('id DESC');
         $schedulesByTour = $scheduleModel->getOpenSchedulesGroupedByTour();
 
-        $title = 'Sửa Booking';
+        $flash=$this->takeFlash();
+        $title="Sửa booking";
         include __DIR__ . '/../views/admin/booking/form.php';
     }
 
-    // POST /?c=Booking&a=update
-    public function update() {
-        $id = (int)($_POST['id'] ?? 0);
-        if ($id <= 0) { $this->redirect('index.php?c=Booking&a=index'); }
+    public function update(){
+        $id=(int)($_POST['id']??0); if($id<=0) $this->redirect('index.php?c=Booking&a=index');
 
-        $bookingModel  = new Booking();
-        $scheduleModel = new Schedule();
+        $bookingModel=new Booking();
+        $scheduleModel=new Schedule();
 
-        $old = $bookingModel->find($id);
-        if (!$old) {
-            $this->setFlash('danger', 'Booking không tồn tại.');
+        $old=$bookingModel->find($id);
+        if(!$old){
+            $this->setFlash('danger','Booking không tồn tại.');
             $this->redirect('index.php?c=Booking&a=index');
         }
 
-        $data = [
-            'tour_id'      => (int)($_POST['tour_id'] ?? 0),
-            'schedule_id'  => (int)($_POST['schedule_id'] ?? 0),  // ✅ NEW
-            'customer_id'  => (int)($_POST['customer_id'] ?? 0),
-            'booking_date' => $_POST['booking_date'] ?? date('Y-m-d'),
-            'status'       => $_POST['status'] ?? 'pending',
+        $data=[
+            'tour_id'=>(int)($_POST['tour_id']??0),
+            'schedule_id'=>(int)($_POST['schedule_id']??0),
+            'customer_id'=>(int)($_POST['customer_id']??0),
+            'booking_date'=>$_POST['booking_date']??date('Y-m-d'),
+            'quantity'=>(int)($_POST['quantity']??1),
+            'status'=>$_POST['status']??'pending',
+            'note'=>trim($_POST['note']??''),
+            'rating'=>($_POST['rating']??'')!==''?(int)$_POST['rating']:null,
+            'feedback'=>trim($_POST['feedback']??''),
+            'issue'=>trim($_POST['issue']??''),
         ];
 
-        if ($data['tour_id'] <= 0 || $data['customer_id'] <= 0) {
-            $this->setFlash('danger', 'Vui lòng chọn Tour và Khách hàng hợp lệ.');
-            $this->redirect('index.php?c=Booking&a=edit&id=' . $id);
+        if($data['tour_id']<=0||$data['schedule_id']<=0||$data['customer_id']<=0){
+            $this->setFlash('danger','Vui lòng chọn Tour / Lịch / Khách hàng.');
+            $this->redirect("index.php?c=Booking&a=edit&id=$id");
         }
 
-        if ($data['schedule_id'] <= 0) {
-            $this->setFlash('danger', 'Vui lòng chọn lịch khởi hành.');
-            $this->redirect('index.php?c=Booking&a=edit&id=' . $id);
+        if($data['quantity']<=0){
+            $this->setFlash('danger','Số lượng khách phải > 0.');
+            $this->redirect("index.php?c=Booking&a=edit&id=$id");
         }
 
-        // ✅ check lịch thuộc tour + còn chỗ (nếu đổi lịch)
-        $sc = $scheduleModel->find($data['schedule_id']);
-        if (!$sc || (int)$sc['tour_id'] !== $data['tour_id']) {
-            $this->setFlash('danger', 'Lịch khởi hành không hợp lệ.');
-            $this->redirect('index.php?c=Booking&a=edit&id=' . $id);
+        $sc=$scheduleModel->find($data['schedule_id']);
+        if(!$sc || (int)$sc['tour_id']!==$data['tour_id']){
+            $this->setFlash('danger','Lịch khởi hành không hợp lệ.');
+            $this->redirect("index.php?c=Booking&a=edit&id=$id");
         }
 
-        // Nếu đổi lịch và lịch mới full thì chặn
-        if ((int)$old['schedule_id'] !== $data['schedule_id']) {
-            $cap = (int)($sc['capacity'] ?? 0);
-            $booked = (int)($sc['booked_count'] ?? 0);
-            if ($cap > 0 && $booked >= $cap) {
-                $this->setFlash('danger', 'Lịch mới đã hết chỗ.');
-                $this->redirect('index.php?c=Booking&a=edit&id=' . $id);
-            }
+        // xử lý booked_count khi đổi lịch / đổi status / đổi quantity
+        $oldStatus=$old['status'];
+        $newStatus=$data['status'];
+        $oldSchedule=(int)$old['schedule_id'];
+        $newSchedule=(int)$data['schedule_id'];
+        $oldQty=(int)$old['quantity'];
+        $newQty=(int)$data['quantity'];
+
+        // Nếu booking cũ confirmed => trừ khỏi lịch cũ
+        if($oldStatus==='confirmed'){
+            $bookingModel->decBooked($oldSchedule,$oldQty);
         }
 
-        // ✅ xử lý booked_count theo chuyển trạng thái / đổi lịch
-        $oldStatus = $old['status'] ?? 'pending';
-        $oldScheduleId = (int)($old['schedule_id'] ?? 0);
-        $newStatus = $data['status'];
-        $newScheduleId = $data['schedule_id'];
-
-        // case 1: đổi lịch
-        if ($oldScheduleId && $oldScheduleId !== $newScheduleId) {
-            // nếu booking cũ đang confirmed => trừ lịch cũ
-            if ($oldStatus === 'confirmed') {
-                $bookingModel->decBooked($oldScheduleId);
+        // Check chỗ lịch mới trước khi cộng
+        $cap=(int)($sc['capacity']??0);
+        $booked=(int)($sc['booked_count']??0);
+        if($cap>0 && ($booked + ($newStatus==='confirmed'?$newQty:0))>$cap){
+            // rollback cộng lại cũ nếu cần
+            if($oldStatus==='confirmed'){
+                $bookingModel->incBooked($oldSchedule,$oldQty);
             }
-            // nếu booking mới confirmed => cộng lịch mới
-            if ($newStatus === 'confirmed') {
-                $bookingModel->incBooked($newScheduleId);
-            }
-        } else {
-            // case 2: cùng lịch, chỉ đổi status
-            if ($oldStatus !== 'confirmed' && $newStatus === 'confirmed') {
-                $bookingModel->incBooked($newScheduleId);
-            }
-            if ($oldStatus === 'confirmed' && $newStatus !== 'confirmed') {
-                $bookingModel->decBooked($newScheduleId);
-            }
+            $this->setFlash('danger','Lịch mới không đủ chỗ.');
+            $this->redirect("index.php?c=Booking&a=edit&id=$id");
         }
 
-        $bookingModel->update($id, $data);
+        // Nếu booking mới confirmed => cộng vào lịch mới
+        if($newStatus==='confirmed'){
+            $bookingModel->incBooked($newSchedule,$newQty);
+        }
 
-        $this->setFlash('success', 'Cập nhật booking thành công.');
+        $bookingModel->update($id,$data);
+        $this->setFlash('success','Cập nhật booking thành công.');
         $this->redirect('index.php?c=Booking&a=index');
     }
 
-    // POST /?c=Booking&a=destroy
-    public function destroy() {
-        $id = (int)($_POST['id'] ?? 0);
-        if ($id > 0) {
-            $bookingModel = new Booking();
-            $old = $bookingModel->find($id);
+    public function destroy(){
+        $id=(int)($_POST['id']??0);
+        if($id>0){
+            $bookingModel=new Booking();
+            $old=$bookingModel->find($id);
 
-            if ($old && ($old['status'] ?? '') === 'confirmed' && !empty($old['schedule_id'])) {
-                $bookingModel->decBooked((int)$old['schedule_id']);
+            if($old && $old['status']==='confirmed'){
+                $bookingModel->decBooked((int)$old['schedule_id'],(int)$old['quantity']);
             }
 
             $bookingModel->delete($id);
-            $this->setFlash('success', 'Xóa booking thành công.');
+            $this->setFlash('success','Xóa booking thành công.');
         }
         $this->redirect('index.php?c=Booking&a=index');
     }
 }
-    
