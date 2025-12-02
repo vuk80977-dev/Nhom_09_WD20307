@@ -72,11 +72,7 @@ $statuses = [
                value="<?= (int)($schedule['capacity'] ?? 0) ?>">
       </div>
 
-      <div class="col-md-3">
-        <label class="form-label">Số đã đặt</label>
-        <input type="number" min="0" class="form-control" name="booked_count"
-               value="<?= (int)($schedule['booked_count'] ?? 0) ?>">
-      </div>
+   
 
       <div class="col-md-3">
         <label class="form-label">Giá riêng (nếu khác tour)</label>

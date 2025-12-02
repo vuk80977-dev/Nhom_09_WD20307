@@ -66,6 +66,8 @@ $statuses = [
           <th>Lịch KH</th>
           <th>HDV</th>
           <th>SL</th>
+          <th>Tổng tiền</th>
+          <th>Đã trả</th>
           <th>Ngày đặt</th>
           <th>Trạng thái</th>
           <th class="text-end">Thao tác</th>
@@ -75,24 +77,63 @@ $statuses = [
       <?php if(!empty($data['items'])): foreach($data['items'] as $r): ?>
         <tr>
           <td>#<?= (int)$r['id'] ?></td>
-         <td>
-          <?= h($r['customer_name']) ?><br>
-          <small class="text-muted">
-            <?= h($r['customer_email'] ?? '') ?> | <?= h($r['customer_phone'] ?? '') ?>
-          </small>
-          <?php if(!empty($r['customer_address'])): ?>
-            <div class="small text-muted"><i class="bi bi-geo-alt"></i> <?= h($r['customer_address']) ?></div>
-          <?php endif; ?>
+
+          <td>
+            <?= h($r['customer_name'] ?? '') ?><br>
+            <small class="text-muted">
+              <?= h($r['customer_email'] ?? '') ?> | <?= h($r['customer_phone'] ?? '') ?>
+            </small>
+            <?php if(!empty($r['customer_address'])): ?>
+              <div class="small text-muted">
+                <i class="bi bi-geo-alt"></i> <?= h($r['customer_address']) ?>
+              </div>
+            <?php endif; ?>
           </td>
 
-          <td><?= h($r['tour_name']) ?></td>
-          <td><?= h($r['start_date']) ?> → <?= h($r['end_date'] ?? '-') ?></td>
+          <td><?= h($r['tour_name'] ?? '') ?></td>
+
+          <td>
+            <?= h($r['start_date'] ?? '') ?>
+            → <?= h($r['end_date'] ?? '-') ?>
+          </td>
+
           <td><?= h($r['guide_name'] ?? 'Chưa gán') ?></td>
-          <td><?= (int)$r['quantity'] ?></td>
-          <td><?= h($r['booking_date']) ?></td>
+
+          <td><?= (int)($r['quantity'] ?? 1) ?></td>
+
+          <!-- Tổng tiền -->
+          <td>
+            <?php if(isset($r['total_price'])): ?>
+              <?= number_format((float)$r['total_price']) ?> đ
+            <?php else: ?>
+              -
+            <?php endif; ?>
+          </td>
+
+          <!-- Đã trả + còn thiếu -->
+          <td>
+            <?php if(isset($r['paid_total'])): ?>
+              <span class="fw-semibold text-success">
+                <?= number_format((float)$r['paid_total']) ?> đ
+              </span>
+
+              <?php if(isset($r['total_price']) && (float)$r['paid_total'] < (float)$r['total_price']): ?>
+                <div class="small text-danger">
+                  Còn thiếu <?= number_format((float)$r['total_price'] - (float)$r['paid_total']) ?> đ
+                </div>
+              <?php endif; ?>
+
+            <?php else: ?>
+              -
+            <?php endif; ?>
+          </td>
+
+          <td><?= h($r['booking_date'] ?? '') ?></td>
+
           <td>
             <?php
-              $badge = match($r['status']){
+              $st = $r['status'] ?? 'pending';
+              $badge = match($st){
                 'confirmed'=>'success',
                 'pending'=>'warning',
                 'cancelled'=>'secondary',
@@ -100,21 +141,37 @@ $statuses = [
                 default=>'secondary'
               };
             ?>
-            <span class="badge text-bg-<?= $badge ?>"><?= h($statuses[$r['status']] ?? $r['status']) ?></span>
+            <span class="badge text-bg-<?= $badge ?>">
+              <?= h($statuses[$st] ?? $st) ?>
+            </span>
           </td>
+
           <td class="text-end">
-            <a class="btn btn-sm btn-outline-primary" href="index.php?c=Booking&a=edit&id=<?= (int)$r['id'] ?>">
+            <!-- Lịch sử thanh toán -->
+            <a class="btn btn-sm btn-outline-success"
+               title="Lịch sử thanh toán"
+               href="index.php?c=Payment&a=index&booking_id=<?= (int)$r['id'] ?>">
+              <i class="bi bi-cash-coin"></i>
+            </a>
+
+            <!-- Sửa -->
+            <a class="btn btn-sm btn-outline-primary"
+               href="index.php?c=Booking&a=edit&id=<?= (int)$r['id'] ?>">
               <i class="bi bi-pencil-square"></i>
             </a>
+
+            <!-- Xóa -->
             <form action="index.php?c=Booking&a=destroy" method="post" class="d-inline"
                   onsubmit="return confirm('Xóa booking #<?= (int)$r['id'] ?>?');">
               <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
-              <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash3"></i></button>
+              <button class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-trash3"></i>
+              </button>
             </form>
           </td>
         </tr>
       <?php endforeach; else: ?>
-        <tr><td colspan="9" class="text-center text-muted py-4">Không có dữ liệu.</td></tr>
+        <tr><td colspan="11" class="text-center text-muted py-4">Không có dữ liệu.</td></tr>
       <?php endif; ?>
       </tbody>
     </table>
@@ -125,14 +182,25 @@ $statuses = [
 <nav class="mt-3">
   <ul class="pagination pagination-sm mb-0">
     <?php
-      $buildUrl=function($p){ $qs=$_GET; $qs['page']=$p; return 'index.php?'.http_build_query($qs); };
+      $buildUrl=function($p){
+        $qs=$_GET; $qs['page']=$p;
+        return 'index.php?'.http_build_query($qs);
+      };
       $page=(int)$data['page']; $pages=(int)$data['pages'];
     ?>
-    <li class="page-item <?= $page<=1?'disabled':'' ?>"><a class="page-link" href="<?= h($buildUrl($page-1)) ?>">«</a></li>
+    <li class="page-item <?= $page<=1?'disabled':'' ?>">
+      <a class="page-link" href="<?= h($buildUrl($page-1)) ?>">«</a>
+    </li>
+
     <?php for($i=1;$i<=$pages;$i++): ?>
-      <li class="page-item <?= $i==$page?'active':'' ?>"><a class="page-link" href="<?= h($buildUrl($i)) ?>"><?= $i ?></a></li>
+      <li class="page-item <?= $i==$page?'active':'' ?>">
+        <a class="page-link" href="<?= h($buildUrl($i)) ?>"><?= $i ?></a>
+      </li>
     <?php endfor; ?>
-    <li class="page-item <?= $page>=$pages?'disabled':'' ?>"><a class="page-link" href="<?= h($buildUrl($page+1)) ?>">»</a></li>
+
+    <li class="page-item <?= $page>=$pages?'disabled':'' ?>">
+      <a class="page-link" href="<?= h($buildUrl($page+1)) ?>">»</a>
+    </li>
   </ul>
 </nav>
 <?php endif; ?>

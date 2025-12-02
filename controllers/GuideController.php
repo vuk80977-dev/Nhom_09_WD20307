@@ -116,13 +116,21 @@ class GuideController
     }
 
     // POST /?c=Guide&a=destroy
-    public function destroy() {
-        $id = (int)($_POST['id'] ?? 0);
-        if ($id > 0) {
-            $model = new Guide();
-            $model->delete($id);
-            $this->setFlash('success', 'Xóa hướng dẫn viên thành công.');
-        }
-        $this->redirect('index.php?c=Guide&a=index');
+    public function delete()
+{
+    $id = (int)($_GET['id'] ?? 0);
+    if ($id <= 0) return;
+
+    $count = self::$conn->query("SELECT COUNT(*) FROM schedules WHERE guide_id=$id")->fetchColumn();
+
+    if ($count > 0) {
+        $this->setFlash("danger","Không thể xóa! Hướng dẫn viên đang phụ trách $count lịch khởi hành.");
+        $this->redirect("index.php?c=Guide&a=index");
     }
+
+    $this->model->delete($id);
+    $this->setFlash("success","Đã xóa hướng dẫn viên.");
+    $this->redirect("index.php?c=Guide&a=index");
+}
+
 }

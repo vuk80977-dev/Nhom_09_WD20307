@@ -191,13 +191,23 @@ class ScheduleController
         $this->redirect('index.php?c=Schedule&a=index');
     }
 
-    public function destroy() {
-        $id = (int)($_POST['id'] ?? 0);
-        if ($id > 0) {
-            $model = new Schedule();
-            $model->delete($id);
-            $this->setFlash('success', 'Xóa lịch khởi hành thành công.');
-        }
-        $this->redirect('index.php?c=Schedule&a=index');
+   public function destroy()
+{
+    $id = (int)($_POST['id'] ?? 0);
+    if ($id <= 0) return;
+
+    $count = self::$conn->query("SELECT COUNT(*) FROM bookings WHERE schedule_id=$id")->fetchColumn();
+
+    if ($count > 0) {
+        $this->setFlash("danger","Không thể xóa! Lịch này có $count booking.");
+        $this->redirect("index.php?c=Schedule&a=index");
     }
+
+    $model = new Schedule();
+    $model->delete($id);
+
+    $this->setFlash("success","Đã xóa lịch khởi hành.");
+    $this->redirect("index.php?c=Schedule&a=index");
+}
+
 }

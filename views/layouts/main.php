@@ -241,6 +241,11 @@ $currentAction     = $_GET['a'] ?? 'index';
 
 
             <!-- Hệ thống -->
+            <a href="index.php?c=TourLog&a=index"
+            class="nav-link-main <?= isActive('TourLog', $currentController) ?>">
+            <i class="bi bi-journal-text"></i> Nhật ký tour
+            </a>
+
             <div class="sidebar-section-title">Hệ thống</div>
             <a href="index.php?c=User&a=index"
                class="nav-link-main <?= isActive('User', $currentController) ?>">

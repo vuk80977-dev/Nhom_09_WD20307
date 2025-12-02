@@ -169,14 +169,22 @@ class CustomerController
     }
 
     // Xóa khách hàng
-    public function delete()
-    {
-        $id = (int)($_GET['id'] ?? 0);
-        if ($id > 0) {
-            $this->model->delete($id);
-            $this->setFlash('success', 'Xóa khách hàng thành công.');
-        }
-        $this->redirect('index.php?c=Customer&a=index');
+   public function delete()
+{
+    $id = (int)($_GET['id'] ?? 0);
+    if ($id <= 0) return;
+
+    $count = self::$conn->query("SELECT COUNT(*) FROM bookings WHERE customer_id=$id")->fetchColumn();
+
+    if ($count > 0) {
+        $this->setFlash("danger","Không thể xóa! Khách hàng đang có $count booking.");
+        $this->redirect("index.php?c=Customer&a=index");
     }
+
+    $this->model->delete($id);
+    $this->setFlash("success","Đã xóa khách hàng.");
+    $this->redirect("index.php?c=Customer&a=index");
+}
+
 }
 ?>
