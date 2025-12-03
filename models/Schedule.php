@@ -108,5 +108,10 @@ public function findWithTourGuide($id) {
     }
     return $grouped;
 }
+public function countByTourId($tourId) {
+    $stmt = self::$conn->prepare("SELECT COUNT(*) FROM schedules WHERE tour_id = ?");
+    $stmt->execute([(int)$tourId]);
+    return (int)$stmt->fetchColumn();
+}
 
 }

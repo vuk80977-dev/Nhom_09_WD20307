@@ -1,6 +1,6 @@
 <?php
 require_once __DIR__ . '/../models/Customer.php';
-
+require_once __DIR__ . '/../models/Booking.php';
 class CustomerController
 {
     private $model;
@@ -174,7 +174,9 @@ class CustomerController
     $id = (int)($_GET['id'] ?? 0);
     if ($id <= 0) return;
 
-    $count = self::$conn->query("SELECT COUNT(*) FROM bookings WHERE customer_id=$id")->fetchColumn();
+   $bookingModel = new Booking();
+   $count = $bookingModel->countByCustomerId($id);
+
 
     if ($count > 0) {
         $this->setFlash("danger","Không thể xóa! Khách hàng đang có $count booking.");

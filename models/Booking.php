@@ -261,5 +261,16 @@ public function deleteBooking($id)
     // Xóa booking
     return $this->delete($id);
 }
+public function countByScheduleId($scheduleId){
+    $stmt = self::$conn->prepare("SELECT COUNT(*) FROM bookings WHERE schedule_id = ?");
+    $stmt->execute([(int)$scheduleId]);
+    return (int)$stmt->fetchColumn();
+}
+    public function countByCustomerId($customerId){
+    $stmt = self::$conn->prepare("SELECT COUNT(*) FROM bookings WHERE customer_id = ?");
+    $stmt->execute([(int)$customerId]);
+    return (int)$stmt->fetchColumn();
+}
+
 
 }

@@ -2,6 +2,8 @@
 require_once __DIR__ . '/../models/Schedule.php';
 require_once __DIR__ . '/../models/Tour.php';
 require_once __DIR__ . '/../models/Guide.php';
+require_once __DIR__ . '/../models/Booking.php';
+
 
 class ScheduleController
 {
@@ -191,12 +193,16 @@ class ScheduleController
         $this->redirect('index.php?c=Schedule&a=index');
     }
 
-   public function destroy()
+public function destroy()
 {
     $id = (int)($_POST['id'] ?? 0);
-    if ($id <= 0) return;
+    if ($id <= 0) {
+        $this->redirect("index.php?c=Schedule&a=index");
+    }
 
-    $count = self::$conn->query("SELECT COUNT(*) FROM bookings WHERE schedule_id=$id")->fetchColumn();
+    // ✅ dùng model để đếm booking
+    $bookingModel = new Booking();
+    $count = $bookingModel->countByScheduleId($id);
 
     if ($count > 0) {
         $this->setFlash("danger","Không thể xóa! Lịch này có $count booking.");
@@ -209,5 +215,6 @@ class ScheduleController
     $this->setFlash("success","Đã xóa lịch khởi hành.");
     $this->redirect("index.php?c=Schedule&a=index");
 }
+
 
 }

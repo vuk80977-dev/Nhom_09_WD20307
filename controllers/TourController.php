@@ -72,21 +72,37 @@ class TourController {
         header('Location: index.php?c=Tour&a=index');
     }
 
-    public function delete()
+public function delete()
 {
     $id = (int)($_GET['id'] ?? 0);
-    if ($id <= 0) return;
-
-    $count = self::$conn->query("SELECT COUNT(*) FROM schedules WHERE tour_id=$id")->fetchColumn();
-
-    if ($count > 0) {
-        $this->setFlash("danger","Không thể xóa! Tour còn $count lịch khởi hành.");
-        $this->redirect("index.php?c=Tour&a=index");
+    if ($id <= 0) {
+        header('Location: index.php?c=Tour&a=index');
+        exit;
     }
 
-    $this->model->delete($id);
-    $this->setFlash("success","Đã xóa tour.");
-    $this->redirect("index.php?c=Tour&a=index");
+    // dùng Schedule model để kiểm tra ràng buộc
+    $scheduleModel = new Schedule();
+    $count = $scheduleModel->countByTourId($id);
+
+    if ($count > 0) {
+        $_SESSION['flash'] = [
+            'type' => 'danger',
+            'msg'  => "Không thể xóa! Tour còn $count lịch khởi hành."
+        ];
+        header('Location: index.php?c=Tour&a=index');
+        exit;
+    }
+
+    // bạn đang dùng tourModel chứ không phải model
+    $this->tourModel->delete($id);
+
+    $_SESSION['flash'] = [
+        'type' => 'success',
+        'msg'  => "Đã xóa tour."
+    ];
+    header('Location: index.php?c=Tour&a=index');
+    exit;
 }
+
 
 }

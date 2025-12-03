@@ -41,7 +41,7 @@ $statuses = [
       <input type="hidden" name="booking_id" value="<?= (int)$booking['id'] ?>">
 
       <div class="col-md-3">
-        <input class="form-control" type="number" name="amount" min="1" step="1000"
+        <input type="number" min="0" step="1" name="amount" class="form-control"
                placeholder="Số tiền" required>
       </div>
 

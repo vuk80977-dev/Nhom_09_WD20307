@@ -132,5 +132,19 @@ class GuideController
     $this->setFlash("success","Đã xóa hướng dẫn viên.");
     $this->redirect("index.php?c=Guide&a=index");
 }
+public function destroy(){
+        $id = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
+        if ($id <= 0) $this->redirect("index.php?c=Guide&a=index");
+
+        $model = new Guide();
+
+        // (Tuỳ bạn) nếu cần check ràng buộc, ví dụ schedules còn gán guide_id
+        // $count = $model->countSchedulesUsingGuide($id);
+        // if ($count > 0) { ... }
+
+        $model->delete($id);
+        $this->setFlash("success", "Đã xóa hướng dẫn viên.");
+        $this->redirect("index.php?c=Guide&a=index");
+    }
 
 }
