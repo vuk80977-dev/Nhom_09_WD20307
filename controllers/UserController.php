@@ -155,4 +155,4 @@ class UserController {
         header('Location: index.php?c=User&a=login');
         exit;
     }
-}
+}openssl_free_key
