@@ -12,13 +12,13 @@ class UserController
         $this->userModel = new User();
     }
 
-    // ===== Helper: check admin =====
+
     private function isAdmin(): bool
     {
-        // Project bạn đang dùng $_SESSION['user']
+ 
         $role = $_SESSION['user']['role'] ?? null;
 
-        // Chấp nhận nhiều kiểu lưu role (tránh lỗi Admin/admin/1)
+
         return in_array($role, ['admin', 'Admin', 1, '1'], true);
     }
 
@@ -40,7 +40,7 @@ class UserController
         }
     }
 
-    // ===== Admin: Danh sách người dùng =====
+
     public function index()
     {
         $this->requireAdmin();
@@ -48,7 +48,7 @@ class UserController
         include __DIR__ . '/../views/admin/users/index.php';
     }
 
-    // ===== Register =====
+ 
     public function register()
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -94,7 +94,7 @@ class UserController
         include __DIR__ . '/../views/admin/users/register.php';
     }
 
-    // ===== Login =====
+
    public function login()
 {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -128,7 +128,6 @@ class UserController
             exit;
         }
 
-        // ✅ CHẶN ROLE KHÔNG PHẢI ADMIN
         if (!in_array($u['role'] ?? '', ['admin', 'Admin', 1, '1'], true)) {
             $_SESSION['error'] = 'Chỉ tài khoản admin mới được đăng nhập.';
             header('Location: index.php?c=User&a=login');
@@ -143,7 +142,7 @@ class UserController
     include __DIR__ . '/../views/admin/users/login.php';
 }
 
-    // ===== Edit profile (user) =====
+    
     public function edit()
     {
         $this->requireLogin();
@@ -186,7 +185,7 @@ class UserController
         include __DIR__ . '/../views/admin/users/edit.php';
     }
 
-    // ===== Logout =====
+    
     public function logout()
     {
         session_destroy();
@@ -194,7 +193,7 @@ class UserController
         exit;
     }
 
-    // ===== Admin: đổi vai trò (nút Lưu) =====
+
     public function changeRole()
     {
         $this->requireAdmin();
@@ -202,7 +201,7 @@ class UserController
         $id = (int)($_GET['id'] ?? 0);
         $role = trim($_POST['role'] ?? '');
 
-        // UI có thể gửi Admin/Khách hoặc admin/customer
+  
         $allowed = ['admin', 'customer', 'Admin', 'Khách'];
 
         if ($id <= 0 || !in_array($role, $allowed, true)) {
@@ -211,14 +210,13 @@ class UserController
             exit;
         }
 
-        // Không cho tự đổi quyền chính mình (tùy chọn nhưng nên có)
+        
         if ($id === (int)($_SESSION['user']['id'] ?? -1)) {
             $_SESSION['error'] = 'Không thể tự đổi quyền của chính bạn';
             header('Location: index.php?c=User&a=index');
             exit;
         }
 
-        // Chuẩn hoá để lưu DB
         $map = ['Admin' => 'admin', 'Khách' => 'customer'];
         $role = $map[$role] ?? $role;
 
@@ -229,7 +227,7 @@ class UserController
         exit;
     }
 
-    // ===== Admin: khóa/mở khóa (nút Khóa/Mở) =====
+   
     public function toggleStatus()
     {
         $this->requireAdmin();
@@ -241,7 +239,7 @@ class UserController
             exit;
         }
 
-        // Không cho tự khóa mình
+       
         if ($id === (int)($_SESSION['user']['id'] ?? -1)) {
             $_SESSION['error'] = 'Không thể tự khóa tài khoản của chính bạn';
             header('Location: index.php?c=User&a=index');
@@ -266,7 +264,7 @@ class UserController
     }
     public function toggleActive()
 {
-    // gọi lại hàm toggleStatus để khỏi lệch tên action
+   
     return $this->toggleStatus();
 }
 

@@ -22,9 +22,6 @@ class BookingController {
         $f=$_SESSION['flash']??null; unset($_SESSION['flash']); return $f;
     }
 
-    // =============================
-    //  LIST + FILTER
-    // =============================
     public function index(){
         $bookingModel = new Booking();
         $tourModel = new Tour();
@@ -49,9 +46,6 @@ class BookingController {
         include __DIR__ . '/../views/admin/booking/index.php';
     }
 
-    // =============================
-    //  CREATE FORM
-    // =============================
     public function create(){
         $tourModel = new Tour();
         $customerModel = new Customer();
@@ -68,20 +62,17 @@ class BookingController {
             'booking_date' => date('Y-m-d'),
             'quantity' => 1,
             'status' => 'pending',
-            'note' => '',      // ghi chú admin
-            'issue' => '',     // sự cố
+            'note' => '',
+            'issue' => '',
         ];
 
-        $travelers = []; // form create chưa có khách
+        $travelers = [];
 
         $flash = $this->takeFlash();
         $title = "Thêm booking";
         include __DIR__ . '/../views/admin/booking/form.php';
     }
 
-    // =============================
-    //  STORE BOOKING
-    // =============================
     public function store() {
 
         $bookingModel = new Booking();
@@ -100,7 +91,6 @@ class BookingController {
 
         $qty = max(1, (int)($_POST['quantity'] ?? 1));
 
-        // check chỗ
         if ($schedule['capacity'] > 0 && $schedule['booked_count'] + $qty > $schedule['capacity']) {
             $this->setFlash('danger', 'Không đủ chỗ cho lịch này.');
             $this->redirect('index.php?c=Booking&a=create');
@@ -121,8 +111,8 @@ class BookingController {
             'quantity'         => $qty,
             'booking_date'     => $_POST['booking_date'] ?? date('Y-m-d'),
             'status'           => $_POST['status'] ?? 'pending',
-            'note'             => trim($_POST['note'] ?? ''),   // giữ
-            'issue'            => trim($_POST['issue'] ?? ''),  // giữ
+            'note'             => trim($_POST['note'] ?? ''),
+            'issue'            => trim($_POST['issue'] ?? ''),
             'price_per_person' => $pricePerPerson,
             'total_price'      => $totalPrice,
             'deposit'          => $deposit,
@@ -136,7 +126,6 @@ class BookingController {
 
         $id = $bookingModel->createBooking($data);
 
-        // thêm payment cọc
         if ($deposit > 0) {
             $paymentModel->create([
                 'booking_id' => $id,
@@ -148,7 +137,6 @@ class BookingController {
             ]);
         }
 
-        // lưu danh sách khách đi kèm
         try {
             $travModel->bulkUpsert($id, $_POST['travellers'] ?? []);
         } catch (\Throwable $e) {
@@ -159,9 +147,6 @@ class BookingController {
         $this->redirect('index.php?c=Booking&a=index');
     }
 
-    // =============================
-    //  EDIT FORM
-    // =============================
     public function edit(){
         $id = (int)($_GET['id'] ?? 0);
         if ($id <= 0) $this->redirect('index.php?c=Booking&a=index');
@@ -189,9 +174,6 @@ class BookingController {
         include __DIR__ . '/../views/admin/booking/form.php';
     }
 
-    // =============================
-    //  UPDATE BOOKING
-    // =============================
     public function update() {
 
         $id = (int)($_POST['id'] ?? 0);
@@ -222,7 +204,7 @@ class BookingController {
         $pricePerPerson = $schedule['price_override'] ?? $tour['price'];
         $totalPrice = $pricePerPerson * $qty;
 
-        $deposit = $old['deposit']; // giữ nguyên cọc cũ
+        $deposit = $old['deposit'];
 
         $data = [
             'tour_id'          => $schedule['tour_id'],
@@ -231,8 +213,8 @@ class BookingController {
             'quantity'         => $qty,
             'booking_date'     => $_POST['booking_date'],
             'status'           => $_POST['status'],
-            'note'             => trim($_POST['note']),   // giữ
-            'issue'            => trim($_POST['issue']),  // giữ
+            'note'             => trim($_POST['note']),
+            'issue'            => trim($_POST['issue']),
             'price_per_person' => $pricePerPerson,
             'total_price'      => $totalPrice,
             'deposit'          => $deposit,
@@ -245,7 +227,6 @@ class BookingController {
             $this->redirect('index.php?c=Booking&a=edit&id='.$id);
         }
 
-        // cập nhật danh sách khách đi kèm
         try {
             $travModel->bulkUpsert($id, $_POST['travellers'] ?? []);
         } catch (\Throwable $e) {
@@ -256,9 +237,6 @@ class BookingController {
         $this->redirect('index.php?c=Booking&a=index');
     }
 
-    // =============================
-    //  DELETE BOOKING
-    // =============================
     public function destroy(){
         $id = (int)($_POST['id'] ?? 0);
 
@@ -277,7 +255,6 @@ class BookingController {
         $this->redirect('index.php?c=Booking&a=index');
     }
 
-    // API JSON: trả DS khách theo booking
     public function travellers_json(){
         $bookingId = (int)($_GET['booking_id'] ?? 0);
         $m = new BookingTraveler();

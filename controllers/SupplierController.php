@@ -135,7 +135,7 @@ class SupplierController {
         $this->redirect('index.php?c=Supplier&a=index');
     }
 
-    // GET/POST: delete (bạn đang dùng GET)
+    // GET/POST: delete 
     public function delete()
 {
     $id = (int)($_GET['id'] ?? 0);

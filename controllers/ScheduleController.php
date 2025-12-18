@@ -4,7 +4,6 @@ require_once __DIR__ . '/../models/Tour.php';
 require_once __DIR__ . '/../models/Guide.php';
 require_once __DIR__ . '/../models/Booking.php';
 
-
 class ScheduleController
 {
     private function redirect($url) {
@@ -96,19 +95,16 @@ class ScheduleController
             $this->redirect('index.php?c=Schedule&a=create');
         }
 
-        // ✅ booked không được vượt capacity
         if ($data['capacity'] > 0 && $data['booked_count'] > $data['capacity']) {
             $this->setFlash('danger', 'Số đã đặt không được vượt quá số chỗ.');
             $this->redirect('index.php?c=Schedule&a=create');
         }
 
-        // ✅ end_date không được nhỏ hơn start_date
         if (!empty($data['end_date']) && $data['end_date'] < $data['start_date']) {
             $this->setFlash('danger', 'Ngày kết thúc không được nhỏ hơn ngày khởi hành.');
             $this->redirect('index.php?c=Schedule&a=create');
         }
 
-        // ✅ Auto-closed nếu full chỗ (chỉ khi status đang open/closed)
         if (in_array($data['status'], ['open','closed'], true)
             && $data['capacity'] > 0
             && $data['booked_count'] >= $data['capacity']) {
@@ -169,19 +165,16 @@ class ScheduleController
             $this->redirect('index.php?c=Schedule&a=edit&id='.$id);
         }
 
-        // ✅ booked không được vượt capacity
         if ($data['capacity'] > 0 && $data['booked_count'] > $data['capacity']) {
             $this->setFlash('danger', 'Số đã đặt không được vượt quá số chỗ.');
             $this->redirect('index.php?c=Schedule&a=edit&id='.$id);
         }
 
-        // ✅ end_date không được nhỏ hơn start_date
         if (!empty($data['end_date']) && $data['end_date'] < $data['start_date']) {
             $this->setFlash('danger', 'Ngày kết thúc không được nhỏ hơn ngày khởi hành.');
             $this->redirect('index.php?c=Schedule&a=edit&id='.$id);
         }
 
-        // ✅ Auto-closed nếu full chỗ (không đè completed/cancelled)
         if (in_array($data['status'], ['open','closed'], true)
             && $data['capacity'] > 0
             && $data['booked_count'] >= $data['capacity']) {
@@ -193,28 +186,25 @@ class ScheduleController
         $this->redirect('index.php?c=Schedule&a=index');
     }
 
-public function destroy()
-{
-    $id = (int)($_POST['id'] ?? 0);
-    if ($id <= 0) {
+    public function destroy()
+    {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0) {
+            $this->redirect("index.php?c=Schedule&a=index");
+        }
+
+        $bookingModel = new Booking();
+        $count = $bookingModel->countByScheduleId($id);
+
+        if ($count > 0) {
+            $this->setFlash("danger","Không thể xóa! Lịch này có $count booking.");
+            $this->redirect("index.php?c=Schedule&a=index");
+        }
+
+        $model = new Schedule();
+        $model->delete($id);
+
+        $this->setFlash("success","Đã xóa lịch khởi hành.");
         $this->redirect("index.php?c=Schedule&a=index");
     }
-
-    // ✅ dùng model để đếm booking
-    $bookingModel = new Booking();
-    $count = $bookingModel->countByScheduleId($id);
-
-    if ($count > 0) {
-        $this->setFlash("danger","Không thể xóa! Lịch này có $count booking.");
-        $this->redirect("index.php?c=Schedule&a=index");
-    }
-
-    $model = new Schedule();
-    $model->delete($id);
-
-    $this->setFlash("success","Đã xóa lịch khởi hành.");
-    $this->redirect("index.php?c=Schedule&a=index");
-}
-
-
 }
