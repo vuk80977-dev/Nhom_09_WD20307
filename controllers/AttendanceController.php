@@ -1,29 +1,73 @@
 <?php
+/**
+ * AttendanceController
+ * - Phần 1: Điểm danh theo LỊCH (schedule) — theo TỪNG HÀNH KHÁCH (traveler)
+ * - Phần 2: Checkpoint theo BOOKING (điểm dừng & điểm danh từng checkpoint)
+ */
+
 require_once __DIR__ . '/../models/Attendance.php';
 require_once __DIR__ . '/../models/Schedule.php';
 require_once __DIR__ . '/../models/Tour.php';
 
-class AttendanceController {
-    private function redirect($url){
-        header("Location: {$url}");
+/* === NEW: cho tính năng checkpoint theo booking === */
+require_once __DIR__ . '/../models/Checkpoint.php';
+require_once __DIR__ . '/../models/AttendanceCheckpoint.php';
+require_once __DIR__ . '/../models/Booking.php';
+require_once __DIR__ . '/../models/Customer.php';
+
+class AttendanceController
+{
+    /* ================== Helpers chung ================== */
+
+    private function redirect(string $url): void {
+        header("Location: $url");
         exit;
     }
-    private function setFlash($type,$msg){
-        if (session_status()!==PHP_SESSION_ACTIVE) session_start();
-        $_SESSION['flash']=['type'=>$type,'msg'=>$msg];
+
+    private function setFlash(string $type, string $msg): void {
+        if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+        $_SESSION['flash'] = ['type' => $type, 'msg' => $msg];
     }
-    private function takeFlash(){
-        if (session_status()!==PHP_SESSION_ACTIVE) session_start();
-        $f=$_SESSION['flash']??null;
+
+    private function takeFlash(): ?array {
+        if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+        $f = $_SESSION['flash'] ?? null;
         unset($_SESSION['flash']);
         return $f;
     }
 
-    // Danh sách lịch khởi hành để chọn điểm danh
-    public function index(){
-        $scheduleModel = new Schedule();
+    /**
+     * Lấy PDO cho các thao tác truy vấn lẻ trong controller.
+     * Ưu tiên helper db(); nếu không có thì dùng env constants.
+     */
+    private function getPdo(): PDO {
+        if (function_exists('db')) {
+            /** @var PDO $pdo */
+            $pdo = db();
+            return $pdo;
+        }
+        // Fallback từ env.php (DB_HOST, DB_NAME, DB_USER, DB_PASS, DB_PORT?)
+        $host = defined('DB_HOST') ? DB_HOST : 'localhost';
+        $name = defined('DB_NAME') ? DB_NAME : 'mvc_tour';
+        $user = defined('DB_USER') ? DB_USER : 'root';
+        $pass = defined('DB_PASS') ? DB_PASS : '';
+        $port = defined('DB_PORT') ? DB_PORT : 3306;
 
-        // lấy tất cả lịch + tên tour
+        $dsn = "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4";
+        $pdo = new PDO($dsn, $user, $pass, [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]);
+        return $pdo;
+    }
+
+    /* =========================================================
+     *  PHẦN 1 — ĐIỂM DANH THEO LỊCH (SCHEDULE)
+     * ========================================================= */
+
+    // Danh sách lịch khởi hành để chọn điểm danh
+    public function index(): void {
+        $scheduleModel = new Schedule();
         $schedules = $scheduleModel->getAllWithTour();
 
         $flash = $this->takeFlash();
@@ -31,52 +75,238 @@ class AttendanceController {
         include __DIR__ . '/../views/admin/attendances/index.php';
     }
 
-    // Form điểm danh cho 1 lịch
-    public function show(){
+    // Form điểm danh cho 1 lịch + filter theo booking/checkpoint
+    public function show(): void {
         $scheduleId = (int)($_GET['schedule_id'] ?? 0);
-        if ($scheduleId<=0) $this->redirect('index.php?c=Attendance&a=index');
+        if ($scheduleId <= 0) $this->redirect('index.php?c=Attendance&a=index');
 
-        $scheduleModel = new Schedule();
+        $scheduleModel   = new Schedule();
         $attendanceModel = new Attendance();
+        $pdo = $this->getPdo();
 
         $schedule = $scheduleModel->findWithTourGuide($scheduleId);
-        if (!$schedule){
-            $this->setFlash('danger','Lịch khởi hành không tồn tại.');
+        if (!$schedule) {
+            $this->setFlash('danger', 'Lịch khởi hành không tồn tại.');
             $this->redirect('index.php?c=Attendance&a=index');
         }
 
-        $roster = $attendanceModel->getRosterBySchedule($scheduleId);
-        $stats  = $attendanceModel->countStatusBySchedule($scheduleId);
+        // Filter booking + checkpoint
+        $bookingId    = (int)($_GET['booking_id'] ?? 0);
+        $checkpointId = (int)($_GET['checkpoint_id'] ?? 0);
+
+        // Danh sách booking của lịch
+        $bkStmt = $pdo->prepare("SELECT id FROM bookings WHERE schedule_id = ? ORDER BY id DESC");
+        $bkStmt->execute([$scheduleId]);
+        $bookingList = $bkStmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+        // Danh sách checkpoint theo booking (nếu đã chọn booking)
+        $checkpointList = [];
+        if ($bookingId > 0) {
+            $st = $pdo->prepare("
+                SELECT id, name 
+                FROM tour_checkpoints 
+                WHERE booking_id = ? 
+                ORDER BY id
+            ");
+            $st->execute([$bookingId]);
+            $checkpointList = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        }
+
+        // Nguồn dữ liệu hiển thị
+        if ($bookingId > 0 && $checkpointId > 0) {
+            // Hiển thị theo CHECKPOINT
+            $roster = $attendanceModel->getRosterByCheckpoint($bookingId, $checkpointId);
+            $stats  = $attendanceModel->countStatusByCheckpoint($bookingId, $checkpointId);
+            $mode   = 'checkpoint';
+        } else {
+            // Hiển thị tổng hợp theo LỊCH (bảng attendances)
+            $roster = $attendanceModel->getRosterBySchedule($scheduleId, $bookingId);
+            $stats  = $attendanceModel->countStatusBySchedule($scheduleId, $bookingId);
+            $mode   = 'schedule';
+        }
 
         $flash = $this->takeFlash();
         $title = "Điểm danh lịch #{$scheduleId}";
         include __DIR__ . '/../views/admin/attendances/form.php';
     }
 
-    // Lưu điểm danh
-    public function store(){
+    // Lưu điểm danh (theo lịch, cấp traveler)
+    public function store(): void {
         $scheduleId = (int)($_POST['schedule_id'] ?? 0);
-        if ($scheduleId<=0) $this->redirect('index.php?c=Attendance&a=index');
+        if ($scheduleId <= 0) $this->redirect('index.php?c=Attendance&a=index');
 
-        $rows = [];
-        $bookingIds = $_POST['booking_id'] ?? [];
-        $customerIds = $_POST['customer_id'] ?? [];
-        $statuses = $_POST['status'] ?? [];
-        $notes = $_POST['note'] ?? [];
+        $rows         = [];
+        $bookingIds   = $_POST['booking_id']   ?? [];
+        $travelerIds  = $_POST['traveler_id']  ?? [];
+        $statuses     = $_POST['status']       ?? [];
+        $notes        = $_POST['note']         ?? [];
 
-        foreach ($bookingIds as $i => $bid){
+        foreach ($bookingIds as $i => $bid) {
             $rows[] = [
                 'booking_id'  => (int)$bid,
-                'customer_id' => (int)($customerIds[$i] ?? 0),
+                'traveler_id' => (int)($travelerIds[$i] ?? 0),
                 'status'      => $statuses[$i] ?? 'absent',
                 'note'        => trim($notes[$i] ?? ''),
             ];
         }
 
-        $attendanceModel = new Attendance();
-        $attendanceModel->saveForSchedule($scheduleId, $rows);
+        (new Attendance())->saveForSchedule($scheduleId, $rows);
+        $this->setFlash('success', 'Lưu điểm danh (theo lịch) thành công.');
+        $this->redirect('index.php?c=Attendance&a=show&schedule_id=' . $scheduleId);
+    }
 
-        $this->setFlash('success','Lưu điểm danh thành công.');
-        $this->redirect('index.php?c=Attendance&a=show&schedule_id='.$scheduleId);
+    /* =========================================================
+     *  PHẦN 2 — BOOKING + CHECKPOINT
+     * ========================================================= */
+
+    // Trang quản lý các điểm lịch trình (checkpoint) của 1 booking
+    public function checkpoints(): void {
+        $bookingId = (int)($_GET['booking_id'] ?? 0);
+        if ($bookingId <= 0) {
+            $this->setFlash('danger', 'Thiếu booking_id.');
+            $this->redirect('index.php?c=Booking&a=index');
+        }
+
+        $pdo        = $this->getPdo();
+        $cpModel    = new Checkpoint($pdo);
+        $bookingM   = new Booking();
+        $customerM  = new Customer();
+
+        // Thông tin booking + KH để hiện ở header
+        $booking  = $bookingM->find($bookingId) ?: [];
+        $customer = [];
+        if (!empty($booking['customer_id'])) {
+            $customer = $customerM->find((int)$booking['customer_id']) ?: [];
+        }
+
+        // tạo 3 checkpoint mặc định nếu chưa có
+        $cpModel->ensureDefaults($bookingId);
+
+        // danh sách điểm dừng tuỳ chọn đã lưu
+        $stops = $cpModel->listStopsByBooking($bookingId) ?? [];
+
+        $flash = $this->takeFlash();
+        $title = 'Điểm lịch trình';
+        include __DIR__ . '/../views/admin/attendances/checkpoints.php';
+    }
+
+    // Lưu danh sách điểm dừng tùy chọn
+    public function checkpoints_save(): void {
+        $bookingId = (int)($_POST['booking_id'] ?? 0);
+        if ($bookingId <= 0) {
+            $this->setFlash('danger','Thiếu booking_id.');
+            $this->redirect('index.php?c=Booking&a=index');
+        }
+
+        $stops   = $_POST['stops'] ?? [];
+        $cpModel = new Checkpoint($this->getPdo());
+        try {
+            $cpModel->saveStops($bookingId, $stops);
+            $this->setFlash('success', 'Đã lưu danh sách điểm dừng.');
+        } catch (\Throwable $e) {
+            $this->setFlash('danger', 'Lỗi: ' . $e->getMessage());
+        }
+        $this->redirect('index.php?c=Attendance&a=checkpoints&booking_id=' . $bookingId);
+    }
+
+    // Form điểm danh cho một checkpoint (hiển thị danh sách khách của booking)
+    public function attendance_checkpoint(): void {
+        $bookingId    = (int)($_GET['booking_id'] ?? 0);
+        $checkpointId = (int)($_GET['checkpoint_id'] ?? 0);
+        if ($bookingId <= 0 || $checkpointId <= 0) {
+            $this->setFlash('danger', 'Thiếu booking_id hoặc checkpoint_id.');
+            $this->redirect('index.php?c=Booking&a=index');
+        }
+
+        $pdo  = $this->getPdo();
+        $acM  = new AttendanceCheckpoint($pdo);
+
+        // danh sách khách + trạng thái đã lưu ở checkpoint này
+        $rows = $acM->listForCheckpoint($bookingId, $checkpointId) ?? [];
+
+        // Lấy tên tour của booking
+        $booking = ['id' => $bookingId];
+        $stmt = $pdo->prepare("
+            SELECT b.id, t.name AS tour_name
+            FROM bookings b
+            LEFT JOIN tours t ON t.id = b.tour_id
+            WHERE b.id = ?
+        ");
+        $stmt->execute([$bookingId]);
+        if ($bk = $stmt->fetch(PDO::FETCH_ASSOC)) $booking = $bk;
+
+        // Lấy thông tin checkpoint (tên hiển thị)
+        $checkpoint = ['id' => $checkpointId, 'name' => 'Checkpoint'];
+        $st = $pdo->prepare("SELECT id, name FROM tour_checkpoints WHERE id = ?");
+        $st->execute([$checkpointId]);
+        if ($cp = $st->fetch(PDO::FETCH_ASSOC)) $checkpoint = $cp;
+
+        $flash = $this->takeFlash();
+        $title = 'Điểm danh checkpoint';
+        $travelers = $rows; // tên biến dùng trong view
+        include __DIR__ . '/../views/admin/attendances/checkpoint_form.php';
+    }
+
+    // Lưu điểm danh cho một checkpoint + ĐỒNG BỘ sang bảng attendances (theo lịch/traveler)
+    public function attendance_checkpoint_store(): void {
+        $bookingId    = (int)($_POST['booking_id'] ?? 0);
+        $checkpointId = (int)($_POST['checkpoint_id'] ?? 0);
+        if ($bookingId <= 0 || $checkpointId <= 0) {
+            $this->setFlash('danger','Thiếu booking_id hoặc checkpoint_id.');
+            $this->redirect('index.php?c=Booking&a=index');
+        }
+
+        // rows[]: mỗi phần tử { traveler_id, status, note }
+        $rows   = $_POST['rows'] ?? [];
+        $userId = $_SESSION['user_id'] ?? null;
+
+        $pdo = $this->getPdo();
+        $acM = new AttendanceCheckpoint($pdo);
+
+        try {
+            // 1) Lưu chi tiết theo traveler ở bảng checkpoint
+            $acM->saveForCheckpoint($bookingId, $checkpointId, $rows, $userId);
+
+            // 2) Tìm schedule_id từ booking
+            $stmt = $pdo->prepare("SELECT schedule_id FROM bookings WHERE id = ?");
+            $stmt->execute([$bookingId]);
+            $scheduleId = (int)$stmt->fetchColumn();
+
+            // 3) Đồng bộ từng traveler sang bảng attendances (theo lịch)
+            if ($scheduleId > 0 && !empty($rows)) {
+                // map tiếng Việt → code
+                $map = [
+                    'Đúng giờ'   => 'present',
+                    'Có mặt'     => 'present',
+                    'Đi muộn'    => 'late',
+                    'Vắng'       => 'absent',
+                    'Về sớm'     => 'left_early',
+                    'present'    => 'present',
+                    'late'       => 'late',
+                    'absent'     => 'absent',
+                    'left_early' => 'left_early',
+                ];
+
+                $scheduleRows = [];
+                foreach ($rows as $r) {
+                    $scheduleRows[] = [
+                        'booking_id'  => $bookingId,
+                        'traveler_id' => (int)($r['traveler_id'] ?? 0),
+                        'status'      => $map[$r['status'] ?? 'present'] ?? 'present',
+                        'note'        => trim($r['note'] ?? ''),
+                    ];
+                }
+                (new Attendance())->saveForSchedule($scheduleId, $scheduleRows);
+            }
+
+            $this->setFlash('success', 'Đã lưu điểm danh.');
+        } catch (\Throwable $e) {
+            $this->setFlash('danger', 'Lỗi: ' . $e->getMessage());
+        }
+
+        $this->redirect(
+            'index.php?c=Attendance&a=attendance_checkpoint&booking_id='
+            . $bookingId . '&checkpoint_id=' . $checkpointId
+        );
     }
 }

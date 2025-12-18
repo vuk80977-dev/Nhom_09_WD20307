@@ -8,12 +8,21 @@ $statuses = [
   'cancelled'=>'Đã hủy',
   'completed'=>'Hoàn thành'
 ];
+$travelers = $travelers ?? []; // đảm bảo luôn có mảng travellers
 ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h5 class="mb-0"><?= h($title) ?></h5>
-  <a href="index.php?c=Booking&a=index" class="btn btn-outline-secondary btn-sm">
-    <i class="bi bi-arrow-left"></i> Quay lại
-  </a>
+  <div class="d-flex gap-2">
+    <?php if ($isEdit): ?>
+      <a href="index.php?c=Attendance&a=checkpoints&booking_id=<?= (int)$booking['id'] ?>"
+         class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-signpost"></i> Điểm lịch trình
+      </a>
+    <?php endif; ?>
+    <a href="index.php?c=Booking&a=index" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left"></i> Quay lại
+    </a>
+  </div>
 </div>
 
 <?php if(!empty($flash)): ?>
@@ -61,7 +70,6 @@ $statuses = [
         <label class="form-label">Khách hàng</label>
         <select class="form-select" name="customer_id" required>
           <?php
-            // tìm khách đang chọn để show info
             $selectedCustomer = null;
             foreach($customers as $cc){
               if((int)$cc['id'] === (int)($booking['customer_id'] ?? 0)){
@@ -69,7 +77,6 @@ $statuses = [
               }
             }
           ?>
-
           <option value="">-- Chọn khách hàng --</option>
           <?php foreach($customers as $c): ?>
             <option value="<?= (int)$c['id'] ?>" <?= (($booking['customer_id'] ?? '')==$c['id'])?'selected':'' ?>>
@@ -104,16 +111,15 @@ $statuses = [
                value="<?= (int)($booking['quantity']??1) ?>" required>
       </div>
       <div class="col-md-3">
-  <label class="form-label">Tiền cọc trước</label>
-  <input type="number"
-         class="form-control"
-         name="deposit"
-         min="0"
-         step="1000"
-         value="<?= h($booking['deposit'] ?? 0) ?>"
-         placeholder="VD: 500000">
-</div>
-
+        <label class="form-label">Tiền cọc trước</label>
+        <input type="number"
+               class="form-control"
+               name="deposit"
+               min="0"
+               step="1000"
+               value="<?= h($booking['deposit'] ?? 0) ?>"
+               placeholder="VD: 500000">
+      </div>
 
       <div class="col-md-3">
         <label class="form-label">Ngày đặt</label>
@@ -135,17 +141,88 @@ $statuses = [
         <textarea class="form-control" name="note" rows="2"><?= h($booking['note']??'') ?></textarea>
       </div>
 
-      <!-- ✅ ĐÃ XÓA KHỐI ĐÁNH GIÁ (rating) -->
-
-      <div class="col-md-12">
-        <label class="form-label">Phản hồi khách</label>
-        <textarea class="form-control" name="feedback" rows="2"><?= h($booking['feedback']??'') ?></textarea>
-      </div>
+      <!-- ĐÃ GỠ HOÀN TOÀN PHẦN PHẢN HỒI KHÁCH -->
 
       <div class="col-12">
         <label class="form-label">Sự cố / ghi nhận vận hành</label>
         <textarea class="form-control" name="issue" rows="2"><?= h($booking['issue']??'') ?></textarea>
       </div>
+
+      <!-- ===================== DANH SÁCH KHÁCH ĐI KÈM ===================== -->
+      <div class="col-12">
+        <hr class="my-2">
+        <h5 class="mb-2">Danh sách khách</h5>
+
+        <table class="table table-sm align-middle" id="traveler-table">
+          <thead>
+            <tr>
+              <th style="width:48px;">#</th>
+              <th>Họ tên *</th>
+              <th style="width:140px;">CCCD</th>
+              <th style="width:160px;">Ngày cấp</th>
+              <th style="width:180px;">Nơi cấp</th>
+              <th style="width:160px;">Ngày sinh</th>
+              <th style="width:120px;">Giới tính</th>
+              <th style="width:36px;"></th>
+            </tr>
+          </thead>
+          <tbody id="traveler-rows">
+            <?php if (!empty($travelers)) foreach ($travelers as $i => $t): ?>
+              <tr>
+                <td class="row-index"><?= $i+1 ?></td>
+                <td>
+                  <input name="travellers[<?= $i ?>][full_name]" class="form-control form-control-sm" 
+                         value="<?= h($t['full_name']) ?>" required>
+                </td>
+                <td>
+                  <input name="travellers[<?= $i ?>][cccd]" class="form-control form-control-sm"
+                         value="<?= h($t['cccd']) ?>" pattern="\d{9}|\d{12}" inputmode="numeric" placeholder="9/12 số">
+                </td>
+                <td><input type="date" name="travellers[<?= $i ?>][cccd_issue_date]" class="form-control form-control-sm"
+                           value="<?= h($t['cccd_issue_date']) ?>"></td>
+                <td><input name="travellers[<?= $i ?>][cccd_issue_place]" class="form-control form-control-sm"
+                           value="<?= h($t['cccd_issue_place']) ?>"></td>
+                <td><input type="date" name="travellers[<?= $i ?>][dob]" class="form-control form-control-sm"
+                           value="<?= h($t['dob']) ?>"></td>
+                <td>
+                  <select name="travellers[<?= $i ?>][gender]" class="form-select form-select-sm">
+                    <option value=""></option>
+                    <option value="male"   <?= ($t['gender']??'')==='male'?'selected':'' ?>>Nam</option>
+                    <option value="female" <?= ($t['gender']??'')==='female'?'selected':'' ?>>Nữ</option>
+                    <option value="other"  <?= ($t['gender']??'')==='other'?'selected':'' ?>>Khác</option>
+                  </select>
+                </td>
+                <td>
+                  <button type="button" class="btn btn-link text-danger p-0 btn-remove" title="Xóa dòng">&times;</button>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-primary btn-sm" id="add-traveler">+ Thêm khách</button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" id="fill-present">Tạo 1 khách trống</button>
+        </div>
+
+        <template id="tpl-traveler-row">
+        <tr>
+          <td class="row-index"></td>
+          <td><input name="travellers[IDX][full_name]" class="form-control form-control-sm" required placeholder="Họ và tên"></td>
+          <td><input name="travellers[IDX][cccd]" class="form-control form-control-sm" pattern="\d{9}|\d{12}" inputmode="numeric" placeholder="9/12 số"></td>
+          <td><input type="date" name="travellers[IDX][cccd_issue_date]" class="form-control form-control-sm"></td>
+          <td><input name="travellers[IDX][cccd_issue_place]" class="form-control form-control-sm"></td>
+          <td><input type="date" name="travellers[IDX][dob]" class="form-control form-control-sm"></td>
+          <td>
+            <select name="travellers[IDX][gender]" class="form-select form-select-sm">
+              <option value=""></option><option value="male">Nam</option><option value="female">Nữ</option><option value="other">Khác</option>
+            </select>
+          </td>
+          <td><button type="button" class="btn btn-link text-danger p-0 btn-remove" title="Xóa dòng">&times;</button></td>
+        </tr>
+        </template>
+      </div>
+      <!-- =================== /DANH SÁCH KHÁCH ĐI KÈM =================== -->
 
       <div class="col-12">
         <button class="btn btn-primary"><i class="bi bi-save"></i> <?= $isEdit?'Cập nhật':'Lưu' ?></button>
@@ -155,31 +232,51 @@ $statuses = [
       <script>
         const tourSelect = document.querySelector('select[name="tour_id"]');
         const scheduleSelect = document.querySelector('select[name="schedule_id"]');
-
-        // lưu toàn bộ option lịch theo tour_id
         const allOptions = [...scheduleSelect.querySelectorAll('option, optgroup')];
 
         function filterSchedules() {
           const tourId = tourSelect.value;
-
-          // reset
           scheduleSelect.innerHTML = '<option value="">-- Chọn lịch --</option>';
-
           allOptions.forEach(el => {
             if (el.tagName === 'OPTGROUP') {
               const label = el.getAttribute('label') || '';
               const match = label.includes('#' + tourId);
-              if (tourId === '' || match) {
-                scheduleSelect.appendChild(el.cloneNode(true));
-              }
+              if (tourId === '' || match) scheduleSelect.appendChild(el.cloneNode(true));
             }
           });
         }
-
         tourSelect.addEventListener('change', filterSchedules);
-
-        // chạy lần đầu khi load form
         filterSchedules();
+
+        (function(){
+          const tbody = document.getElementById('traveler-rows');
+          const tpl   = document.getElementById('tpl-traveler-row').innerHTML;
+          let idx = <?= !empty($travelers) ? count($travelers) : 0 ?>;
+
+          function renum(){
+            [...tbody.querySelectorAll('tr')].forEach((tr,i)=>tr.querySelector('.row-index').textContent = i+1);
+          }
+          document.getElementById('add-traveler').onclick = () => {
+            tbody.insertAdjacentHTML('beforeend', tpl.replaceAll('IDX', idx++)); renum();
+          };
+          document.getElementById('fill-present').onclick = () => {
+            tbody.insertAdjacentHTML('beforeend', tpl.replaceAll('IDX', idx++)); renum();
+          };
+          tbody.addEventListener('click', (e) => {
+            if (e.target.classList.contains('btn-remove')) {
+              e.preventDefault(); e.target.closest('tr').remove(); renum();
+            }
+          });
+          tbody.addEventListener('input', (e) => {
+            const el = e.target;
+            if (el.name && el.name.includes('[cccd]')) {
+              el.value = el.value.replace(/\D+/g, '').slice(0, 12);
+              const ok = (el.value==='' || /^\d{9}$/.test(el.value) || /^\d{12}$/.test(el.value));
+              el.setCustomValidity(ok ? '' : 'CCCD phải 9 hoặc 12 số');
+            }
+          });
+          renum();
+        })();
       </script>
 
     </form>

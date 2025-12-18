@@ -4,61 +4,131 @@ require_once __DIR__ . '/BaseModel.php';
 class Attendance extends BaseModel {
     protected $table = 'attendances';
 
-    // Lấy danh sách khách cần điểm danh cho 1 lịch khởi hành
-    public function getRosterBySchedule($scheduleId) {
+    /* ========================================================
+     *  A. THEO LỊCH (schedule) — cấp độ TỪNG HÀNH KHÁCH
+     * ====================================================== */
+
+    /** Lấy roster theo lịch; có thể lọc theo 1 booking cụ thể */
+    public function getRosterBySchedule(int $scheduleId, int $bookingId = 0): array {
         $sql = "
             SELECT 
-                b.id AS booking_id,
-                b.status AS booking_status,
-                c.id AS customer_id,
-                c.name AS customer_name,
-                c.phone AS customer_phone,
-                c.email AS customer_email,
-                a.status AS attendance_status,
-                a.note AS attendance_note
+                b.id                    AS booking_id,
+                b.status                AS booking_status,
+                t.id                    AS traveler_id,
+                t.full_name             AS traveler_name,
+                t.phone                 AS traveler_phone,
+                t.email                 AS traveler_email,
+                COALESCE(a.status,'absent') AS attendance_status,
+                COALESCE(a.note,'')        AS attendance_note
             FROM bookings b
-            JOIN customers c ON c.id = b.customer_id
-            LEFT JOIN attendances a 
-                ON a.booking_id = b.id AND a.schedule_id = :sid
+            JOIN booking_travelers t ON t.booking_id = b.id
+            LEFT JOIN attendances a
+                   ON a.schedule_id = :sid
+                  AND a.traveler_id = t.id
             WHERE b.schedule_id = :sid
-            ORDER BY b.id DESC
         ";
-        $stmt = self::$conn->prepare($sql);
-        $stmt->execute([':sid' => $scheduleId]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $params = [':sid' => $scheduleId];
+
+        if ($bookingId > 0) {
+            $sql .= " AND b.id = :bid";
+            $params[':bid'] = $bookingId;
+        }
+
+        $sql .= " ORDER BY b.id DESC, t.id";
+        $st = self::$conn->prepare($sql);
+        $st->execute($params);
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 
-    // Lưu điểm danh (upsert)
-    public function saveForSchedule($scheduleId, $rows) {
+    /** Thống kê trạng thái theo lịch; có thể lọc theo booking */
+    public function countStatusBySchedule(int $scheduleId, int $bookingId = 0): array {
+        $sql = "SELECT status, COUNT(*) AS total
+                FROM attendances
+                WHERE schedule_id = :sid";
+        $params = [':sid' => $scheduleId];
+
+        if ($bookingId > 0) {
+            $sql .= " AND booking_id = :bid";
+            $params[':bid'] = $bookingId;
+        }
+
+        $sql .= " GROUP BY status";
+        $st = self::$conn->prepare($sql);
+        $st->execute($params);
+        return $st->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
+    }
+
+    /**
+     * Lưu (upsert) theo lịch, cấp traveler.
+     * $rows[] = ['booking_id','traveler_id','status','note']
+     * Dùng alias tránh cảnh báo VALUES() (MySQL 8+).
+     */
+    public function saveForSchedule(int $scheduleId, array $rows): void {
+        if (empty($rows)) return;
+
         $sql = "
-            INSERT INTO attendances (schedule_id, booking_id, customer_id, status, note, checked_at)
-            VALUES (:schedule_id, :booking_id, :customer_id, :status, :note, NOW())
+            INSERT INTO attendances
+                (schedule_id, booking_id, traveler_id, status, note, checked_at)
+            VALUES
+                (:schedule_id, :booking_id, :traveler_id, :status, :note, NOW())
+            AS newvals
             ON DUPLICATE KEY UPDATE
-                status = VALUES(status),
-                note = VALUES(note),
+                status     = newvals.status,
+                note       = newvals.note,
                 checked_at = NOW()
         ";
-        $stmt = self::$conn->prepare($sql);
+        $st = self::$conn->prepare($sql);
 
         foreach ($rows as $r) {
-            $stmt->execute([
+            $st->execute([
                 ':schedule_id' => $scheduleId,
-                ':booking_id'  => $r['booking_id'],
-                ':customer_id' => $r['customer_id'],
-                ':status'      => $r['status'],
-                ':note'        => $r['note'],
+                ':booking_id'  => (int)$r['booking_id'],
+                ':traveler_id' => (int)$r['traveler_id'],
+                ':status'      => $r['status'] ?? 'absent',
+                ':note'        => $r['note']   ?? '',
             ]);
         }
     }
 
-    // Thống kê nhanh theo lịch
-    public function countStatusBySchedule($scheduleId) {
-        $sql = "SELECT status, COUNT(*) as total
-                FROM attendances 
-                WHERE schedule_id = ?
-                GROUP BY status";
-        $stmt = self::$conn->prepare($sql);
-        $stmt->execute([$scheduleId]);
-        return $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
+    /* ========================================================
+     *  B. THEO CHECKPOINT (booking + checkpoint)
+     * ====================================================== */
+
+    /** Lấy roster theo CHECKPOINT của 1 booking */
+    public function getRosterByCheckpoint(int $bookingId, int $checkpointId): array {
+        $sql = "
+            SELECT 
+                t.id        AS traveler_id,
+                t.full_name AS traveler_name,
+                t.phone     AS traveler_phone,
+                t.email     AS traveler_email,
+                COALESCE(ac.status,'present') AS attendance_status,
+                COALESCE(ac.note,'')          AS attendance_note
+            FROM booking_travelers t
+            LEFT JOIN attendance_checkpoints ac
+                   ON ac.traveler_id = t.id
+                  AND ac.checkpoint_id = :cpid
+            WHERE t.booking_id = :bid
+            ORDER BY t.id
+        ";
+        $st = self::$conn->prepare($sql);
+        $st->execute([':cpid' => $checkpointId, ':bid' => $bookingId]);
+        return $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+
+    /** Thống kê theo CHECKPOINT của 1 booking */
+    public function countStatusByCheckpoint(int $bookingId, int $checkpointId): array {
+        $sql = "
+            SELECT ac.status, COUNT(*) AS total
+            FROM booking_travelers t
+            LEFT JOIN attendance_checkpoints ac
+                   ON ac.traveler_id = t.id
+                  AND ac.checkpoint_id = :cpid
+            WHERE t.booking_id = :bid
+            GROUP BY ac.status
+        ";
+        $st = self::$conn->prepare($sql);
+        $st->execute([':cpid' => $checkpointId, ':bid' => $bookingId]);
+        return $st->fetchAll(PDO::FETCH_KEY_PAIR) ?: [];
     }
 }

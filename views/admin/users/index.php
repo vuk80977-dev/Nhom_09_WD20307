@@ -4,6 +4,16 @@ ob_start();
 ?>
 <h1 class="h5 mb-3">Quản lý tài khoản</h1>
 
+<?php if (!empty($_SESSION['error'])): ?>
+    <div class="alert alert-danger"><?= $_SESSION['error']; ?></div>
+    <?php unset($_SESSION['error']); ?>
+<?php endif; ?>
+
+<?php if (!empty($_SESSION['success'])): ?>
+    <div class="alert alert-success"><?= $_SESSION['success']; ?></div>
+    <?php unset($_SESSION['success']); ?>
+<?php endif; ?>
+
 <?php if (!empty($users)): ?>
     <div class="card border-0 shadow-sm">
         <div class="card-body p-0">
@@ -21,31 +31,36 @@ ob_start();
                 <tbody>
                 <?php foreach ($users as $u): ?>
                     <tr>
-                        <td><?= $u['id'] ?></td>
-                        <td><?= htmlspecialchars($u['name']) ?></td>
-                        <td><?= htmlspecialchars($u['email']) ?></td>
+                        <td><?= (int)$u['id'] ?></td>
+                        <td><?= htmlspecialchars($u['name'] ?? '') ?></td>
+                        <td><?= htmlspecialchars($u['email'] ?? '') ?></td>
+
                         <td>
                             <form method="post" action="index.php?c=User&a=changeRole" class="d-flex gap-2">
-                                <input type="hidden" name="id" value="<?= $u['id'] ?>">
+                                <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
                                 <select name="role" class="form-select form-select-sm">
-                                    <option value="customer" <?= $u['role']=='customer'?'selected':'' ?>>Khách</option>
-                                    <option value="staff" <?= $u['role']=='staff'?'selected':'' ?>>Nhân viên</option>
-                                    <option value="admin" <?= $u['role']=='admin'?'selected':'' ?>>Admin</option>
+                                    <option value="customer" <?= ($u['role'] ?? '')=='customer' ? 'selected' : '' ?>>Khách</option>
+                                    <option value="staff" <?= ($u['role'] ?? '')=='staff' ? 'selected' : '' ?>>Nhân viên</option>
+                                    <option value="admin" <?= ($u['role'] ?? '')=='admin' ? 'selected' : '' ?>>Admin</option>
                                 </select>
                                 <button class="btn btn-sm btn-primary">Lưu</button>
                             </form>
                         </td>
+
                         <td>
-                            <?php if ($u['is_active']): ?>
+                            <?php if (!empty($u['is_active'])): ?>
                                 <span class="badge text-bg-success">Hoạt động</span>
                             <?php else: ?>
                                 <span class="badge text-bg-secondary">Đã khóa</span>
                             <?php endif; ?>
                         </td>
+
                         <td class="text-end">
-                            <a href="index.php?c=User&a=toggleActive&id=<?= $u['id'] ?>"
-                               class="btn btn-sm <?= $u['is_active'] ? 'btn-outline-warning':'btn-outline-success' ?>">
-                                <?= $u['is_active'] ? 'Khoá' : 'Mở khoá' ?>
+                            <a href="index.php?c=User&a=toggleActive&id=<?= (int)$u['id'] ?>"
+                               class="btn btn-sm <?= !empty($u['is_active']) ? 'btn-outline-warning' : 'btn-outline-success' ?>"
+                               onclick="return confirm('Bạn chắc chắn muốn <?= !empty($u['is_active']) ? 'khóa' : 'mở khóa' ?> tài khoản này?');"
+                            >
+                                <?= !empty($u['is_active']) ? 'Khoá' : 'Mở khoá' ?>
                             </a>
                         </td>
                     </tr>

@@ -1,1 +1,0 @@
-<?php class Invoice extends BaseModel {} ?>
